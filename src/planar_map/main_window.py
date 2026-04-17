@@ -1,0 +1,353 @@
+import os
+from typing import Optional, List
+from PyQt6.QtWidgets import (
+    QMainWindow, QSplitter, QWidget, QVBoxLayout,
+    QTabWidget, QTextBrowser, QPlainTextEdit, QPushButton,
+    QLabel, QFileDialog, QMessageBox, QDialog, QFormLayout,
+    QDialogButtonBox, QKeySequenceEdit
+)
+from PyQt6.QtCore import Qt, QRectF, QUrl
+from PyQt6.QtGui import (
+    QColor, QPainter, QKeySequence, QShortcut, QPdfWriter,
+    QPageSize, QPageLayout, QTextDocument, QTextCursor,
+    QTextBlockFormat, QTextFormat, QTextImageFormat, QImage
+)
+
+from graph_models import GraphWidget
+from config import load_config, save_config
+
+
+class ShortcutEditorDialog(QDialog):
+    """A dialog to edit keyboard shortcuts natively."""
+
+    def __init__(
+        self,
+        config_data: dict,
+        parent: Optional[QWidget] = None
+    ) -> None:
+        super().__init__(parent=parent)
+        self.setWindowTitle("Edit Shortcuts")
+        self.config_data = config_data
+        self.layout = QFormLayout(parent=self)
+        self.edits: dict[str, QKeySequenceEdit] = {}
+
+        for action, shortcut in self.config_data['shortcuts'].items():
+            edit = QKeySequenceEdit(QKeySequence(shortcut))
+            label_name = action.replace('_', ' ').title()
+            self.layout.addRow(label_name, edit)
+            self.edits[action] = edit
+
+        buttons = (
+            QDialogButtonBox.StandardButton.Save |
+            QDialogButtonBox.StandardButton.Cancel
+        )
+        self.btns = QDialogButtonBox(buttons)
+        self.btns.accepted.connect(self.accept)
+        self.btns.rejected.connect(self.reject)
+        self.layout.addWidget(self.btns)
+
+    def get_updated_shortcuts(self) -> dict:
+        return {
+            action: edit.keySequence().toString()
+            for action, edit in self.edits.items()
+        }
+
+
+class MainWindow(QMainWindow):
+    """Main application window holding the split layout (Graph / Markdown)."""
+
+    def __init__(self, yaml_file: str) -> None:
+        super().__init__()
+        self.setWindowTitle(f"Obsidian Network - {yaml_file}")
+        self.setMinimumSize(1000, 600)
+
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.setCentralWidget(self.splitter)
+
+        self.graph_widget = GraphWidget(
+            yaml_file=yaml_file,
+            main_window=self
+        )
+        self.splitter.addWidget(self.graph_widget)
+
+        self.right_panel = QWidget()
+        self.right_layout = QVBoxLayout(parent=self.right_panel)
+
+        self.file_label = QLabel(
+            "Hover over a node to preview, double-click to edit."
+        )
+        self.file_label.setStyleSheet("font-weight: bold; color: #aaaaaa;")
+        self.right_layout.addWidget(self.file_label)
+
+        self.md_tabs = QTabWidget()
+        self.md_preview = QTextBrowser()
+        self.md_editor = QPlainTextEdit()
+
+        self.md_preview.setStyleSheet(
+            "background-color: #2b2b2b; "
+            "color: #e0e0e0; "
+            "font-size: 14px; "
+            "padding: 10px;"
+        )
+        self.md_editor.setStyleSheet(
+            "background-color: #1e1e1e; "
+            "color: #ffffff; "
+            "font-family: Consolas, monospace; "
+            "font-size: 14px; "
+            "padding: 10px;"
+        )
+
+        self.md_tabs.addTab(self.md_preview, "Preview")
+        self.md_tabs.addTab(self.md_editor, "Editor")
+        self.right_layout.addWidget(self.md_tabs)
+
+        self.save_btn = QPushButton("Save Markdown Document")
+        self.save_btn.setStyleSheet(
+            "background-color: #4CAF50; "
+            "color: white; "
+            "padding: 8px; "
+            "font-weight: bold;"
+        )
+        self.save_btn.clicked.connect(self.save_markdown)
+        self.right_layout.addWidget(self.save_btn)
+
+        self.splitter.addWidget(self.right_panel)
+        self.splitter.setSizes([700, 300])
+
+        self.current_md_file: Optional[str] = None
+        self.active_shortcuts: List[QShortcut] = []
+
+        self.config = load_config()
+        self.apply_shortcuts()
+
+    def open_shortcut_editor(self) -> None:
+        dialog = ShortcutEditorDialog(config_data=self.config, parent=self)
+        if dialog.exec():
+            new_shortcuts = dialog.get_updated_shortcuts()
+            self.config['shortcuts'].update(new_shortcuts)
+            save_config(config=self.config)
+            self.apply_shortcuts()
+            QMessageBox.information(
+                self,
+                "Success",
+                "Shortcuts updated successfully!"
+            )
+
+    def apply_shortcuts(self) -> None:
+        for shortcut in self.active_shortcuts:
+            shortcut.setEnabled(False)
+            shortcut.deleteLater()
+        self.active_shortcuts.clear()
+
+        s = self.config.get('shortcuts', {})
+
+        bindings = {
+            'open_yaml': self.open_yaml,
+            'create_node': self.graph_widget.create_node,
+            'create_edge': self.graph_widget.create_edge,
+            'save_yaml': self.graph_widget.save_yaml,
+            'delete_selected': self.graph_widget.delete_selected,
+            'delete_selected_alt': self.graph_widget.delete_selected,
+            'edit_selected': self.graph_widget.edit_selected,
+            'export_graph': self.export_graph_pdf,
+            'export_markdown': self.export_markdown_pdf,
+            'export_compilation': self.export_compilation_pdf,
+            'edit_shortcuts': self.open_shortcut_editor
+        }
+
+        for action, func in bindings.items():
+            key_seq = s.get(action)
+            if key_seq:
+                shortcut = QShortcut(QKeySequence(key_seq), self)
+                shortcut.activated.connect(func)
+                self.active_shortcuts.append(shortcut)
+
+    def open_yaml(self) -> None:
+        filename, _ = QFileDialog.getOpenFileName(
+            parent=self,
+            caption="Open Graph YAML",
+            directory="",
+            filter="YAML Files (*.yaml *.yml)"
+        )
+        if filename:
+            self.graph_widget.yaml_file = filename
+            self.graph_widget.scene.clear()
+            self.graph_widget.nodes_dict.clear()
+            self.graph_widget.load_yaml()
+            title = f"Obsidian Network - {os.path.basename(p=filename)}"
+            self.setWindowTitle(title)
+
+    def load_markdown_preview(self, filepath: str) -> None:
+        if not filepath:
+            self.md_preview.clear()
+            self.file_label.setText("No markdown file assigned.")
+            return
+        self.md_tabs.setCurrentIndex(0)
+        if os.path.exists(path=filepath):
+            with open(file=filepath, mode='r', encoding='utf-8') as f:
+                self.md_preview.setMarkdown(f.read())
+            self.file_label.setText(f"Previewing: {filepath}")
+        else:
+            self.md_preview.setMarkdown(
+                f"### {filepath} doesn't exist yet.\n\n"
+                "Double-click the node to create and edit it."
+            )
+            self.file_label.setText(f"Missing File: {filepath}")
+
+    def load_markdown_editor(self, filepath: str) -> None:
+        if not filepath:
+            return
+        self.current_md_file = filepath
+        self.md_tabs.setCurrentIndex(1)
+        self.file_label.setText(f"Editing: {filepath}")
+
+        base = os.path.basename(p=filepath).replace('.md', '')
+        content = f"# {base}\n\nStart typing your ideas here..."
+        if os.path.exists(path=filepath):
+            with open(file=filepath, mode='r', encoding='utf-8') as f:
+                content = f.read()
+        self.md_editor.setPlainText(content)
+        self.md_editor.setFocus()
+
+    def save_markdown(self) -> None:
+        if self.current_md_file:
+            with open(
+                file=self.current_md_file, mode='w', encoding='utf-8'
+            ) as f:
+                f.write(self.md_editor.toPlainText())
+            self.md_preview.setMarkdown(self.md_editor.toPlainText())
+            self.file_label.setText(f"Saved: {self.current_md_file}")
+
+    def export_graph_pdf(self) -> None:
+        filename, _ = QFileDialog.getSaveFileName(
+            parent=self,
+            caption="Export Graph to PDF",
+            directory="graph.pdf",
+            filter="PDF Files (*.pdf)"
+        )
+        if not filename:
+            return
+
+        writer = QPdfWriter(filename)
+        writer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+        writer.setPageOrientation(QPageLayout.Orientation.Landscape)
+
+        painter = QPainter(writer)
+        target_rect = QRectF(0, 0, writer.width(), writer.height())
+        source_rect = self.graph_widget.scene.itemsBoundingRect().adjusted(
+            -50, -50, 50, 50
+        )
+
+        self.graph_widget.scene.render(
+            painter,
+            target_rect,
+            source_rect,
+            Qt.AspectRatioMode.KeepAspectRatio
+        )
+        painter.end()
+        QMessageBox.information(
+            self, "Success", f"Graph exported to {filename}"
+        )
+
+    def export_markdown_pdf(self) -> None:
+        exists = self.current_md_file and os.path.exists(
+            path=self.current_md_file
+        )
+        if not exists:
+            QMessageBox.warning(
+                self,
+                "Warning",
+                "No active/saved markdown file selected in the panel."
+            )
+            return
+
+        filename, _ = QFileDialog.getSaveFileName(
+            parent=self,
+            caption="Export Markdown to PDF",
+            directory=f"{self.current_md_file}.pdf",
+            filter="PDF Files (*.pdf)"
+        )
+        if not filename:
+            return
+
+        writer = QPdfWriter(filename)
+        writer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+
+        doc = QTextDocument()
+        with open(
+            file=self.current_md_file, mode='r', encoding='utf-8'
+        ) as f:
+            doc.setMarkdown(f.read())
+        doc.print(writer)
+
+        QMessageBox.information(
+            self, "Success", f"Document exported to {filename}"
+        )
+
+    def export_compilation_pdf(self) -> None:
+        filename, _ = QFileDialog.getSaveFileName(
+            parent=self,
+            caption="Export Compilation",
+            directory="compilation.pdf",
+            filter="PDF Files (*.pdf)"
+        )
+        if not filename:
+            return
+
+        writer = QPdfWriter(filename)
+        writer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+
+        source_rect = self.graph_widget.scene.itemsBoundingRect().adjusted(
+            -50, -50, 50, 50
+        )
+        if source_rect.isEmpty():
+            source_rect = QRectF(0, 0, 800, 600)
+
+        img_width = 2400
+        img_height = int(img_width * source_rect.height() /
+                         source_rect.width())
+        image = QImage(img_width, img_height, QImage.Format.Format_ARGB32)
+        image.fill(QColor("#1e1e1e"))
+
+        painter = QPainter(image)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self.graph_widget.scene.render(
+            painter,
+            QRectF(image.rect()),
+            source_rect
+        )
+        painter.end()
+
+        master_doc = QTextDocument()
+        res_type = QTextDocument.ResourceType.ImageResource
+        master_doc.addResource(res_type, QUrl("mydata://graph.png"), image)
+        cursor = QTextCursor(master_doc)
+
+        img_format = QTextImageFormat()
+        img_format.setName("mydata://graph.png")
+        img_format.setWidth(750)
+        cursor.insertImage(img_format)
+
+        md_files = set(
+            node.md_file for node in self.graph_widget.nodes_dict.values()
+            if node.md_file and os.path.exists(path=node.md_file)
+        )
+        sorted_files = sorted(list(md_files))
+
+        for md_file in sorted_files:
+            block_format = QTextBlockFormat()
+            page_break = QTextFormat.PageBreakFlag.PageBreak_AlwaysBefore
+            block_format.setPageBreakPolicy(page_break)
+            cursor.insertBlock(block_format)
+
+            with open(file=md_file, mode='r', encoding='utf-8') as f:
+                content = f.read()
+
+            temp_doc = QTextDocument()
+            temp_doc.setMarkdown(content)
+            cursor.insertHtml(temp_doc.toHtml())
+
+        master_doc.print(writer)
+        QMessageBox.information(
+            self, "Success", f"Compilation exported to {filename}"
+        )

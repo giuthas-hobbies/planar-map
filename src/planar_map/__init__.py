@@ -1,2 +1,1 @@
-def main() -> None:
-    print("Hello from planar-map!")
+from .cli import run_cli

@@ -1,3 +1,7 @@
+# Local files
+local/
+local
+
 # Python-generated files
 __pycache__/
 *.py[oc]
