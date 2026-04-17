@@ -8,13 +8,14 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QRectF, QUrl
 from PyQt6.QtGui import (
+    QAction,
     QColor, QPainter, QKeySequence, QShortcut, QPdfWriter,
     QPageSize, QPageLayout, QTextDocument, QTextCursor,
     QTextBlockFormat, QTextFormat, QTextImageFormat, QImage
 )
 
-from graph_models import GraphWidget
-from config import load_config, save_config
+from planar_map.graph_models import GraphWidget
+from planar_map.config import load_config, save_config
 
 
 class ShortcutEditorDialog(QDialog):
@@ -71,7 +72,7 @@ class MainWindow(QMainWindow):
         self.splitter.addWidget(self.graph_widget)
 
         self.right_panel = QWidget()
-        self.right_layout = QVBoxLayout(parent=self.right_panel)
+        self.right_layout = QVBoxLayout(self.right_panel)
 
         self.file_label = QLabel(
             "Hover over a node to preview, double-click to edit."
@@ -119,6 +120,64 @@ class MainWindow(QMainWindow):
 
         self.config = load_config()
         self.apply_shortcuts()
+        self._setup_menus()
+
+    def _setup_menus(self) -> None:
+        """Creates the main application menu bar and maps commands."""
+        menu_bar = self.menuBar()
+
+        # File Menu
+        m_file = menu_bar.addMenu("File")
+
+        a_open = QAction(text="Open YAML", parent=self)
+        a_open.triggered.connect(slot=self.open_yaml)
+        m_file.addAction(a_open)
+
+        a_save = QAction(text="Save YAML", parent=self)
+        a_save.triggered.connect(slot=self.graph_widget.save_yaml)
+        m_file.addAction(a_save)
+
+        m_file.addSeparator()
+
+        a_short = QAction(text="Edit Shortcuts", parent=self)
+        a_short.triggered.connect(slot=self.open_shortcut_editor)
+        m_file.addAction(a_short)
+
+        # Edit Menu
+        m_edit = menu_bar.addMenu("Edit")
+
+        a_cnode = QAction(text="Create Node", parent=self)
+        a_cnode.triggered.connect(slot=self.graph_widget.create_node)
+        m_edit.addAction(a_cnode)
+
+        a_cedge = QAction(text="Create Edge", parent=self)
+        a_cedge.triggered.connect(slot=self.graph_widget.create_edge)
+        m_edit.addAction(a_cedge)
+
+        m_edit.addSeparator()
+
+        a_esel = QAction(text="Edit Selected", parent=self)
+        a_esel.triggered.connect(slot=self.graph_widget.edit_selected)
+        m_edit.addAction(a_esel)
+
+        a_dsel = QAction(text="Delete Selected", parent=self)
+        a_dsel.triggered.connect(slot=self.graph_widget.delete_selected)
+        m_edit.addAction(a_dsel)
+
+        # Export Menu
+        m_export = menu_bar.addMenu("Export")
+
+        a_egraph = QAction(text="Export Graph PDF", parent=self)
+        a_egraph.triggered.connect(slot=self.export_graph_pdf)
+        m_export.addAction(a_egraph)
+
+        a_emd = QAction(text="Export Markdown PDF", parent=self)
+        a_emd.triggered.connect(slot=self.export_markdown_pdf)
+        m_export.addAction(a_emd)
+
+        a_ecomp = QAction(text="Export Compilation PDF", parent=self)
+        a_ecomp.triggered.connect(slot=self.export_compilation_pdf)
+        m_export.addAction(a_ecomp)
 
     def open_shortcut_editor(self) -> None:
         dialog = ShortcutEditorDialog(config_data=self.config, parent=self)

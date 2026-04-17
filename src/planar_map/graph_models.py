@@ -3,18 +3,18 @@ import yaml
 import math
 import random
 from typing import (
-    Dict, Any, List, Optional, Tuple, Set, cast, TYPE_CHECKING
+    Dict, Any, List, Optional, Tuple, Set, cast
 )
 from PyQt6.QtWidgets import (
     QGraphicsView, QGraphicsScene, QGraphicsItem,
     QDialog, QFormLayout, QLineEdit, QDialogButtonBox,
-    QMessageBox, QWidget, QStyleOptionGraphicsItem
+    QMessageBox, QMenu, QWidget, QStyleOptionGraphicsItem
 )
 from PyQt6.QtCore import Qt, QPointF, QLineF, QTimer, QRectF
 from PyQt6.QtGui import QColor, QPen, QBrush, QPainter, QPainterPath
 
-if TYPE_CHECKING:
-    from main_window import MainWindow
+# if TYPE_CHECKING:
+#     from planar_map.main_window import MainWindow
 
 
 class EditDialog(QDialog):
@@ -289,6 +289,20 @@ class Node(QGraphicsItem):
         self.graph_widget.clear_hover_state()
         super().hoverLeaveEvent(event)
 
+    def contextMenuEvent(self, event: Any) -> None:
+        """Handles right-click context menu directly on the node."""
+        self.setSelected(True)
+
+        menu = QMenu()
+        edit_act = menu.addAction("Edit Node")
+        del_act = menu.addAction("Delete Node")
+
+        action = menu.exec(event.screenPos())
+        if action == edit_act:
+            self.graph_widget.edit_selected()
+        elif action == del_act:
+            self.graph_widget.delete_selected()
+
     def mouseDoubleClickEvent(self, event: Any) -> None:
         if self.md_file:
             main_win = self.graph_widget.main_window
@@ -518,3 +532,20 @@ class GraphWidget(QGraphicsView):
             n.calculate_forces(nodes=nodes)
         for n in nodes:
             n.advance_position()
+
+    def contextMenuEvent(self, event: Any) -> None:
+        """Handles right-click context menu on the canvas background."""
+        item = self.itemAt(event.pos())
+        if item is not None:
+            super().contextMenuEvent(event)
+            return
+
+        menu = QMenu(parent=self)
+        add_node_act = menu.addAction("Add Node")
+        save_pdf_act = menu.addAction("Save Graph PDF")
+
+        action = menu.exec(event.globalPos())
+        if action == add_node_act:
+            self.create_node()
+        elif action == save_pdf_act:
+            self.main_window.export_graph_pdf()

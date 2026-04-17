@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-planar-map = "planar_map:main"
+planar-map = "planar_map:run_cli"
 
 [build-system]
 requires = ["uv_build>=0.11.3,<0.12.0"]

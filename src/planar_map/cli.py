@@ -1,7 +1,7 @@
 import sys
 import click
 from PyQt6.QtWidgets import QApplication
-from main_window import MainWindow
+from planar_map.main_window import MainWindow
 
 
 @click.command()
