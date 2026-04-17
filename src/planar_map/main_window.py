@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QSplitter, QWidget, QVBoxLayout,
     QTabWidget, QTextBrowser, QPlainTextEdit, QPushButton,
     QLabel, QFileDialog, QMessageBox, QDialog, QFormLayout,
-    QDialogButtonBox, QKeySequenceEdit
+    QDialogButtonBox, QKeySequenceEdit, QSlider, QGroupBox
 )
 from PyQt6.QtCore import Qt, QRectF, QUrl
 from PyQt6.QtGui import (
@@ -14,6 +14,7 @@ from PyQt6.QtGui import (
     QTextBlockFormat, QTextFormat, QTextImageFormat, QImage
 )
 
+from planar_map.entity_list_widget import EntityListWidget
 from planar_map.graph_models import GraphWidget
 from planar_map.config import load_config, save_config
 
@@ -54,6 +55,65 @@ class ShortcutEditorDialog(QDialog):
         }
 
 
+class PhysicsWidget(QGroupBox):
+    """A widget containing sliders to adjust physics parameters."""
+
+    def __init__(self, main_window: 'MainWindow') -> None:
+        super().__init__(title="Physics Settings")
+        self.main_window = main_window
+        self.layout = QFormLayout(parent=self)
+
+        r_force = int(self._get_conf(key='repulsion_force'))
+        self.rep_force_slider = self._make_slider(
+            min_val=0, max_val=20000, init_val=r_force
+        )
+
+        r_range = int(self._get_conf(key='repulsion_range'))
+        self.rep_range_slider = self._make_slider(
+            min_val=0, max_val=1000, init_val=r_range
+        )
+
+        a_force = int(self._get_conf(key='attraction_force') * 1000)
+        self.attr_force_slider = self._make_slider(
+            min_val=0, max_val=200, init_val=a_force
+        )
+
+        s_len = int(self._get_conf(key='spring_length'))
+        self.spring_len_slider = self._make_slider(
+            min_val=0, max_val=500, init_val=s_len
+        )
+
+        self.layout.addRow("Repulsion Force", self.rep_force_slider)
+        self.layout.addRow("Repulsion Range", self.rep_range_slider)
+        self.layout.addRow("Attraction Force", self.attr_force_slider)
+        self.layout.addRow("Spring Length", self.spring_len_slider)
+
+    def _get_conf(self, key: str) -> float:
+        return float(self.main_window.config['physics'][key])
+
+    def _make_slider(
+        self, min_val: int, max_val: int, init_val: int
+    ) -> QSlider:
+        s = QSlider(orientation=Qt.Orientation.Horizontal)
+        s.setMinimum(min_val)
+        s.setMaximum(max_val)
+        s.setValue(init_val)
+        s.valueChanged.connect(self._on_change)
+        return s
+
+    def _on_change(self) -> None:
+        phys = self.main_window.config['physics']
+        phys['repulsion_force'] = float(self.rep_force_slider.value())
+        phys['repulsion_range'] = float(self.rep_range_slider.value())
+        phys['attraction_force'] = float(
+            self.attr_force_slider.value() / 1000.0
+        )
+        phys['spring_length'] = float(self.spring_len_slider.value())
+
+        save_config(config=self.main_window.config)
+        self.main_window.graph_widget.update_physics_params()
+
+
 class MainWindow(QMainWindow):
     """Main application window holding the split layout (Graph / Markdown)."""
 
@@ -61,6 +121,9 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(f"Obsidian Network - {yaml_file}")
         self.setMinimumSize(1000, 600)
+
+        # Load config FIRST so the widgets can read the defaults
+        self.config = load_config()
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.setCentralWidget(self.splitter)
@@ -84,33 +147,25 @@ class MainWindow(QMainWindow):
         self.md_preview = QTextBrowser()
         self.md_editor = QPlainTextEdit()
 
-        self.md_preview.setStyleSheet(
-            "background-color: #2b2b2b; "
-            "color: #e0e0e0; "
-            "font-size: 14px; "
-            "padding: 10px;"
-        )
-        self.md_editor.setStyleSheet(
-            "background-color: #1e1e1e; "
-            "color: #ffffff; "
-            "font-family: Consolas, monospace; "
-            "font-size: 14px; "
-            "padding: 10px;"
-        )
+        # ... (keep existing md_preview and md_editor styles here) ...
 
         self.md_tabs.addTab(self.md_preview, "Preview")
         self.md_tabs.addTab(self.md_editor, "Editor")
-        self.right_layout.addWidget(self.md_tabs)
 
-        self.save_btn = QPushButton("Save Markdown Document")
-        self.save_btn.setStyleSheet(
-            "background-color: #4CAF50; "
-            "color: white; "
-            "padding: 8px; "
-            "font-weight: bold;"
-        )
-        self.save_btn.clicked.connect(self.save_markdown)
+        self.right_splitter = QSplitter(orientation=Qt.Orientation.Vertical)
+        self.right_splitter.addWidget(self.md_tabs)
+
+        self.entity_list = EntityListWidget(main_window=self)
+        self.right_splitter.addWidget(self.entity_list)
+        self.right_layout.addWidget(self.right_splitter)
+
+        self.save_btn = QPushButton(text="Save Markdown Document")
+        # ... (keep existing save_btn styles and connections here) ...
         self.right_layout.addWidget(self.save_btn)
+
+        # ADD THE PHYSICS WIDGET AT THE BOTTOM OF THE RIGHT PANEL
+        self.physics_widget = PhysicsWidget(main_window=self)
+        self.right_layout.addWidget(self.physics_widget)
 
         self.splitter.addWidget(self.right_panel)
         self.splitter.setSizes([700, 300])
@@ -118,9 +173,11 @@ class MainWindow(QMainWindow):
         self.current_md_file: Optional[str] = None
         self.active_shortcuts: List[QShortcut] = []
 
-        self.config = load_config()
         self.apply_shortcuts()
         self._setup_menus()
+
+        # Populate the tree widget with the loaded graph data
+        self.entity_list.refresh_data()
 
     def _setup_menus(self) -> None:
         """Creates the main application menu bar and maps commands."""

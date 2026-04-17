@@ -11,8 +11,9 @@ from PyQt6.QtWidgets import (
     QMessageBox, QMenu, QWidget, QStyleOptionGraphicsItem
 )
 from PyQt6.QtCore import Qt, QPointF, QLineF, QTimer, QRectF
-from PyQt6.QtGui import QColor, QPen, QBrush, QPainter, QPainterPath
-
+from PyQt6.QtGui import (
+    QColor, QPen, QBrush, QPainter, QPainterPath, QFont, QFontMetrics
+)
 # if TYPE_CHECKING:
 #     from planar_map.main_window import MainWindow
 
@@ -164,13 +165,16 @@ class Node(QGraphicsItem):
     ) -> None:
         super().__init__()
         self.id = node_id
-        self.label = label
-        self.md_file = md_file
         self.graph_widget = graph_widget
         self.edges: List['Edge'] = []
         self.new_pos = QPointF()
-        self.radius: int = 12
         self.is_dimmed: bool = False
+
+        self.rect_width = 60.0
+        self.rect_height = 32.0
+
+        # Initialize labels and calculate dynamic bounding dimensions
+        self.update_data(label=label, md_file=md_file)
 
         flags = (
             QGraphicsItem.GraphicsItemFlag.ItemIsMovable |
@@ -181,6 +185,22 @@ class Node(QGraphicsItem):
         self.setAcceptHoverEvents(True)
         self.setCacheMode(QGraphicsItem.CacheMode.DeviceCoordinateCache)
         self.setZValue(1)
+
+    def update_data(self, label: str, md_file: str) -> None:
+        """Updates the label, resizes the node, and triggers a repaint."""
+        self.prepareGeometryChange()
+        self.label = label
+        self.md_file = md_file
+
+        font = QFont()
+        metrics = QFontMetrics(font)
+        text_width = metrics.horizontalAdvance(self.label)
+        text_height = metrics.height()
+
+        # Add padding around the text
+        self.rect_width = float(max(text_width + 24, 60))
+        self.rect_height = float(max(text_height + 16, 32))
+        self.update()
 
     def add_edge(self, edge: 'Edge') -> None:
         self.edges.append(edge)
@@ -197,6 +217,13 @@ class Node(QGraphicsItem):
         if self.scene().mouseGrabberItem() == self:
             self.new_pos = self.pos()
             return
+
+        phys = self.graph_widget.physics_params
+        rep_force = float(phys.get('repulsion_force', 5000.0))
+        rep_range = float(phys.get('repulsion_range', 300.0))
+        attr_force = float(phys.get('attraction_force', 0.05))
+        spring_len = float(phys.get('spring_length', 100.0))
+
         xvel, yvel = 0.0, 0.0
 
         for node in nodes:
@@ -204,8 +231,11 @@ class Node(QGraphicsItem):
                 continue
             line = QLineF(self.pos(), node.pos())
             dist = line.length()
-            if 0 < dist < 300:
-                force = 500.0 / (dist * dist)
+
+            # Limited range repulsion
+            if 0 < dist < rep_range:
+                # Add a small smoothing constant to avoid zero-division leaps
+                force = rep_force / (dist * dist + 1.0)
                 xvel -= (line.dx() / dist) * force
                 yvel -= (line.dy() / dist) * force
 
@@ -214,7 +244,7 @@ class Node(QGraphicsItem):
             line = QLineF(self.pos(), target.pos())
             dist = line.length()
             if dist > 0:
-                force = (dist - 100) * 0.02
+                force = (dist - spring_len) * attr_force
                 xvel += (line.dx() / dist) * force
                 yvel += (line.dy() / dist) * force
 
@@ -227,11 +257,12 @@ class Node(QGraphicsItem):
         return True
 
     def boundingRect(self) -> QRectF:
+        pad = 5.0
         return QRectF(
-            -self.radius - 2,
-            -self.radius - 2,
-            self.radius * 2 + 54,
-            self.radius * 2 + 34
+            -self.rect_width / 2 - pad,
+            -self.rect_height / 2 - pad,
+            self.rect_width + pad * 2,
+            self.rect_height + pad * 2
         )
 
     def paint(
@@ -253,20 +284,25 @@ class Node(QGraphicsItem):
             border_color = QColor("#ffffff" if not self.is_dimmed else "none")
 
         border_color.setAlpha(alpha if not self.is_dimmed else 0)
-        painter.setPen(QPen(border_color, 3 if self.isSelected() else 1.5))
-        painter.drawEllipse(
-            -self.radius,
-            -self.radius,
-            self.radius * 2,
-            self.radius * 2
+        pen = QPen(border_color, 3.0 if self.isSelected() else 1.5)
+        painter.setPen(pen)
+
+        rect = QRectF(
+            -self.rect_width / 2,
+            -self.rect_height / 2,
+            self.rect_width,
+            self.rect_height
         )
+
+        # Positional arguments prevent overload errors in PyQt QPainter
+        painter.drawRoundedRect(rect, 8.0, 8.0)
 
         text_color = QColor("#ffffff")
         text_color.setAlpha(alpha)
         painter.setPen(text_color)
-        metrics = painter.fontMetrics()
-        offset_x = -int(metrics.horizontalAdvance(self.label) / 2)
-        painter.drawText(offset_x, self.radius + 15, self.label)
+
+        flags = int(Qt.AlignmentFlag.AlignCenter)
+        painter.drawText(rect, flags, self.label)
 
     def itemChange(
         self,
@@ -289,9 +325,17 @@ class Node(QGraphicsItem):
         self.graph_widget.clear_hover_state()
         super().hoverLeaveEvent(event)
 
+    def mouseDoubleClickEvent(self, event: Any) -> None:
+        if self.md_file:
+            main_win = self.graph_widget.main_window
+            main_win.load_markdown_editor(filepath=self.md_file)
+        else:
+            self.graph_widget.edit_selected()
+        super().mouseDoubleClickEvent(event)
+
     def contextMenuEvent(self, event: Any) -> None:
         """Handles right-click context menu directly on the node."""
-        self.setSelected(True)
+        self.setSelected(selected=True)
 
         menu = QMenu()
         edit_act = menu.addAction("Edit Node")
@@ -302,14 +346,6 @@ class Node(QGraphicsItem):
             self.graph_widget.edit_selected()
         elif action == del_act:
             self.graph_widget.delete_selected()
-
-    def mouseDoubleClickEvent(self, event: Any) -> None:
-        if self.md_file:
-            main_win = self.graph_widget.main_window
-            main_win.load_markdown_editor(filepath=self.md_file)
-        else:
-            self.graph_widget.edit_selected()
-        super().mouseDoubleClickEvent(event)
 
 
 class GraphWidget(QGraphicsView):
@@ -333,6 +369,22 @@ class GraphWidget(QGraphicsView):
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_physics)
         self.timer.start(1000 // 60)
+        self.update_physics_params()
+
+    @property
+    def edges(self) -> list:
+        """Dynamically gathers all unique edges from the graph's nodes."""
+        unique_edges = set()
+        for node in self.nodes_dict.values():
+            # Use update to add all edges from this node to the set
+            unique_edges.update(node.edges)
+        return list(unique_edges)
+
+    def update_physics_params(self) -> None:
+        """Pulls the latest physics parameters from the main config."""
+        self.physics_params = self.main_window.config.get(
+            'physics', {}
+        ).copy()
 
     def load_yaml(self) -> None:
         if not os.path.exists(path=self.yaml_file):
@@ -427,6 +479,7 @@ class GraphWidget(QGraphicsView):
             self.scene.addItem(node)
             center = self.mapToScene(self.viewport().rect().center())
             node.setPos(center)
+        self.main_window.entity_list.refresh_data()
 
     def create_edge(self) -> None:
         selected = [
@@ -469,6 +522,7 @@ class GraphWidget(QGraphicsView):
                 pair=pair_key,
                 edges_list=edge_data_list
             )
+        self.main_window.entity_list.refresh_data()
 
     def edit_selected(self) -> None:
         sel = self.scene.selectedItems()
@@ -481,9 +535,11 @@ class GraphWidget(QGraphicsView):
             dialog = EditDialog(fields=fields, title=title, parent=self)
             if dialog.exec():
                 data = dialog.get_data()
-                sel[0].label = data['label']
-                sel[0].md_file = data['md_file']
-                sel[0].update()
+                # Use the new method to update properties & geometry safely
+                sel[0].update_data(
+                    label=data['label'],
+                    md_file=data['md_file']
+                )
         elif isinstance(sel[0], Edge):
             fields = {
                 'color': sel[0].base_color.name(),
@@ -493,6 +549,7 @@ class GraphWidget(QGraphicsView):
             dialog = EditDialog(fields=fields, title="Edit Edge", parent=self)
             if dialog.exec():
                 sel[0].update_properties(properties=dialog.get_data())
+        self.main_window.entity_list.refresh_data()
 
     def delete_selected(self) -> None:
         for item in self.scene.selectedItems():
@@ -501,6 +558,7 @@ class GraphWidget(QGraphicsView):
         for item in self.scene.selectedItems():
             if isinstance(item, Node):
                 item.remove()
+        self.main_window.entity_list.refresh_data()
 
     def set_hover_state(self, active: Node) -> None:
         conn: Set[Node] = {active}

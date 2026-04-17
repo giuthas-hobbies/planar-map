@@ -1,0 +1,36 @@
+nodes:
+- id: Main
+  label: Announ
+  md_file: Announ.markdown
+- id: A
+  label: Concept A
+- id: B
+  label: Concept B
+- id: C
+  label: Concept C
+edges:
+- source: Main
+  target: A
+  color: '#7b61ff'
+  width: 2
+  style: solid
+- source: Main
+  target: A
+  color: '#00bfff'
+  width: 2
+  style: dashed
+- source: Main
+  target: B
+  color: '#ff5555'
+  width: 2
+  style: dashed
+- source: A
+  target: B
+  color: '#55ff55'
+  width: 1
+  style: dotted
+- source: Main
+  target: C
+  color: '#888888'
+  width: 1
+  style: solid

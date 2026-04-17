@@ -1,0 +1,6 @@
+nodes:
+- id: NewNode
+  label: A Announ
+- id: Kivi
+  label: Kivi
+edges: []

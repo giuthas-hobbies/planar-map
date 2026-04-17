@@ -1,0 +1,18 @@
+shortcuts:
+  open_yaml: Ctrl+O
+  create_node: Ctrl+N
+  create_edge: Ctrl+E
+  save_yaml: Ctrl+S
+  delete_selected: Delete
+  delete_selected_alt: Backspace
+  edit_selected: Return
+  export_graph: Ctrl+Shift+G
+  export_markdown: Ctrl+Shift+M
+  export_compilation: Ctrl+Shift+C
+  edit_shortcuts: Ctrl+Shift+S
+  
+physics:
+  repulsion_force: 5000.0
+  repulsion_range: 300.0
+  attraction_force: 0.05
+  spring_length: 100.0
