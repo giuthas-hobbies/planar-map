@@ -27,6 +27,7 @@ extensions = [
     'sphinx.ext.viewcode',     # To add links to source code in the docs
     'sphinx_autodoc_typehints',  # Optional: formats typehints beautifully
     "myst_parser",              # Parse markdown docs into sphinx html
+    "sphinx_copybutton",        # For copying code listings
 ]
 
 # Tell Sphinx to treat .markdown and .md files as Markdown
@@ -79,3 +80,7 @@ autodoc_class_signature = "separated"
 
 # Tells the index to ignore these prefixes when sorting
 modindex_common_prefix = ["planar_map."]
+
+# Strip standard terminal prompts when copying
+copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "
+copybutton_prompt_is_regexp = True
