@@ -8,20 +8,20 @@ parse command-line arguments and initialize the application instance.
 
 Examples
 --------
-Assuming the package is installed or executable, you can run the GUI
-from your terminal using the default file:
+Assuming the package has been installed with `uv`, you can run the GUI
+from your terminal:
 
 .. code-block:: bash
 
-    $ python -m planar_map.cli
+    $ planar_map
 
 You can also specify a custom YAML file using the provided options:
 
 .. code-block:: bash
 
-    $ python -m planar_map.cli --file my_custom_graph.yaml
+    $ planar_map --file my_custom_graph.yaml
     # or
-    $ python -m planar_map.cli -f my_custom_graph.yaml
+    $ planar_map -f my_custom_graph.yaml
 """
 
 import sys
