@@ -2,13 +2,13 @@
 """
 Command-line interface for the Planar Map application.
 
-This module provides the entry point for launching the PyQt6-based 
-Planar Map graphical user interface. It uses the `click` library to 
+This module provides the entry point for launching the PyQt6-based
+Planar Map graphical user interface. It uses the `click` library to
 parse command-line arguments and initialize the application instance.
 
 Examples
 --------
-Assuming the package is installed or executable, you can run the GUI 
+Assuming the package is installed or executable, you can run the GUI
 from your terminal using the default file:
 
 .. code-block:: bash
@@ -41,14 +41,14 @@ def run_cli(file: str) -> None:
     """
     Launch the Planar Map GUI.
 
-    This function initializes the PyQt6 application loop, instantiates 
-    the `MainWindow` with the provided file path, and executes the 
+    This function initializes the PyQt6 application loop, instantiates
+    the `MainWindow` with the provided file path, and executes the
     application.
 
     Parameters
     ----------
     file : str
-        The path to the YAML file to load and save the graph data. 
+        The path to the YAML file to load and save the graph data.
         Defaults to 'graph.yaml' via the click option.
 
     Returns
@@ -57,8 +57,8 @@ def run_cli(file: str) -> None:
 
     Examples
     --------
-    While typically invoked directly from the command line, you can 
-    invoke this command programmatically (e.g., for unit testing) 
+    While typically invoked directly from the command line, you can
+    invoke this command programmatically (e.g., for unit testing)
     using `click.testing.CliRunner`:
 
     >>> from click.testing import CliRunner
