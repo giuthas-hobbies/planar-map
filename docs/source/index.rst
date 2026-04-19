@@ -6,10 +6,14 @@
 planar-map documentation
 ========================
 
-Add your content using ``reStructuredText`` syntax. See the
-`reStructuredText <https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html>`_
-documentation for details.
+Planar map maps planes in a multiverse.
 
+.. toctree::
+   :maxdepth: 1
+   :titlesonly:
+   :caption: Contents:
+
+   Changelog
 
 .. toctree::
    :maxdepth: 1

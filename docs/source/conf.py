@@ -25,8 +25,16 @@ extensions = [
     'sphinx.ext.autodoc',      # Core library to pull docstrings
     'sphinx.ext.napoleon',     # To parse NumPy/Google style docstrings
     'sphinx.ext.viewcode',     # To add links to source code in the docs
-    'sphinx_autodoc_typehints'  # Optional: formats typehints beautifully
+    'sphinx_autodoc_typehints',  # Optional: formats typehints beautifully
+    "myst_parser",              # Parse markdown docs into sphinx html
 ]
+
+# Tell Sphinx to treat .markdown and .md files as Markdown
+source_suffix = {
+    '.rst': 'restructuredtext',
+    '.md': 'markdown',
+    '.markdown': 'markdown',
+}
 
 # Napoleon settings
 napoleon_google_docstring = False
