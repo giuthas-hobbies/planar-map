@@ -12,6 +12,6 @@ shortcuts:
   edit_shortcuts: Ctrl+Shift+S
 physics:
   repulsion_force: 9189.0
-  repulsion_range: 649.0
-  attraction_force: 0.008
-  spring_length: 189.0
+  repulsion_range: 110.0
+  attraction_force: 0.11
+  spring_length: 42.0

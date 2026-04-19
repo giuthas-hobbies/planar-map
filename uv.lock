@@ -215,8 +215,6 @@ dependencies = [
     { name = "click" },
     { name = "pyqt6" },
     { name = "pyyaml" },
-    { name = "sphinx" },
-    { name = "sphinx-rtd-theme" },
 ]
 
 [package.dev-dependencies]
@@ -231,8 +229,6 @@ requires-dist = [
     { name = "click", specifier = ">=8.3.2" },
     { name = "pyqt6", specifier = ">=6.11.0" },
     { name = "pyyaml", specifier = ">=6.0.3" },
-    { name = "sphinx", specifier = ">=9.1.0" },
-    { name = "sphinx-rtd-theme", specifier = ">=3.1.0" },
 ]
 
 [package.metadata.requires-dev]
