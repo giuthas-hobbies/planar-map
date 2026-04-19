@@ -18,21 +18,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # - name: Install uv
-      #   uses: astral-sh/setup-uv@v3
-      #   with:
-      #     enable-cache: true
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
 
-      # - name: Set up Python
-      #   run: uv python install
+      - name: Set up Python
+        run: uv python install
 
-      # - name: Install dependencies
-      #   run: uv sync
+      - name: Install dependencies
+        run: uv sync
 
-      # - name: Build documentation
-      #   run: |
-      #     cd docs
-      #     make gen-docs
+      - name: Build documentation
+        run: |
+          cd docs
+          make gen-docs
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

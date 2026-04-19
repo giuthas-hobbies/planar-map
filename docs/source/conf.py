@@ -44,7 +44,8 @@ html_static_path = ['_static']
 
 # Uncomment this AND deal with the resulting errors before trying to run doc
 # generation as a github action or similar.
-# autodoc_mock_imports = ["PyQt6", "yaml"]
+# Add any libraries here that might crash in a headless Linux environment
+autodoc_mock_imports = ["PyQt6", "yaml", "tkinter"]
 
 autodoc_type_aliases = {
     'MainWindow': 'planar_map.main_window.MainWindow',
