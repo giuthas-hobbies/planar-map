@@ -3,7 +3,7 @@ nodes:
   label: Announ
   md_file: Announ.markdown
 - id: A
-  label: Concept A
+  label: Kivi
 - id: B
   label: Concept B
 - id: C

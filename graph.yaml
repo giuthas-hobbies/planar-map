@@ -1,6 +1,6 @@
 nodes:
 - id: NewNode
-  label: A Announ
+  label: Announ
 - id: Kivi
   label: Kivi
 edges: []

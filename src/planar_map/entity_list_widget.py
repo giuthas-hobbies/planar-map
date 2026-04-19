@@ -4,7 +4,14 @@ from PyQt6.QtCore import Qt
 
 
 class EntityListWidget(QTreeWidget):
-    """A resizable tree widget listing nodes and edges with editable fields."""
+    """
+    A resizable tree widget listing nodes and edges with editable fields.
+
+    Parameters
+    ----------
+    main_window : Any
+        A reference to the application's main window.
+    """
 
     def __init__(self, main_window: Any) -> None:
         super().__init__()
@@ -14,7 +21,12 @@ class EntityListWidget(QTreeWidget):
         self._is_updating: bool = False
 
     def refresh_data(self) -> None:
-        """Populates the tree with current nodes and edges."""
+        """
+        Populate the tree widget with the current nodes and edges.
+
+        Clears the current list and rebuilds it based on the data
+        present in the main window's graph widget.
+        """
         self._is_updating = True
         self.clear()
 
@@ -68,7 +80,20 @@ class EntityListWidget(QTreeWidget):
     def _make_editable(
         self, item: QTreeWidgetItem, obj_type: str, obj_id: str, field: str
     ) -> None:
-        """Sets item flags to editable and stores metadata for callbacks."""
+        """
+        Set item flags to editable and store metadata for callbacks.
+
+        Parameters
+        ----------
+        item : QTreeWidgetItem
+            The tree item to make editable.
+        obj_type : str
+            The type of object ('node' or 'edge').
+        obj_id : str
+            The unique identifier of the object.
+        field : str
+            The specific property field this item represents.
+        """
         flags = item.flags() | Qt.ItemFlag.ItemIsEditable
         item.setFlags(flags)
 
@@ -76,7 +101,16 @@ class EntityListWidget(QTreeWidget):
         item.setData(0, Qt.ItemDataRole.UserRole, meta)
 
     def _on_item_changed(self, item: QTreeWidgetItem, column: int) -> None:
-        """Handles updates when the user edits a value in the tree."""
+        """
+        Handle updates when the user edits a value in the tree.
+
+        Parameters
+        ----------
+        item : QTreeWidgetItem
+            The item that was edited.
+        column : int
+            The column index that was edited.
+        """
         if self._is_updating or column != 1:
             return
 
@@ -84,7 +118,7 @@ class EntityListWidget(QTreeWidget):
         if not meta:
             return
 
-        new_val = item.text(1)  # Also updated to positional for safety
+        new_val = item.text(1)
         graph = self.main_window.graph_widget
 
         if meta["type"] == "node":

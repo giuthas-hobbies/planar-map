@@ -4,7 +4,6 @@ from pathlib import Path
 from importlib import resources
 from typing import Dict, Any
 
-
 # Define paths for the working directory and the user directory
 CWD_CONFIG = Path(os.getcwd()) / "config.yaml"
 USER_DIR = Path(os.path.expanduser(path="~/.planar-map"))
@@ -15,10 +14,15 @@ CONFIG_FILE: Path = CWD_CONFIG
 
 
 def get_default_config() -> Dict[str, Any]:
-    """Loads the default configuration from package resources."""
-    # Note: Replace 'your_package_name' with your actual package name folder
-    # if you are running this outside of a standard module context.
-    pkg = __package__ if __package__ else "your_package_name"
+    """
+    Load the default configuration from package resources.
+
+    Returns
+    -------
+    Dict[str, Any]
+        A dictionary containing the default shortcut and physics settings.
+    """
+    pkg = __package__ if __package__ else "planar_map"
 
     try:
         # For Python 3.9+
@@ -37,7 +41,18 @@ def get_default_config() -> Dict[str, Any]:
 
 
 def load_config() -> Dict[str, Any]:
-    """Loads config from cwd or ~/.planar-map, or creates from default."""
+    """
+    Load the configuration from the working directory or user directory.
+
+    If no configuration file exists, it creates one using the default
+    settings. It also merges any missing default parameters into an
+    existing configuration.
+
+    Returns
+    -------
+    Dict[str, Any]
+        The active configuration dictionary.
+    """
     global CONFIG_FILE
 
     # Decide which path to use
@@ -52,12 +67,12 @@ def load_config() -> Dict[str, Any]:
 
     # If neither file exists, create the user config from defaults
     if not CONFIG_FILE.exists():
-        save_config(config=default_conf)
+        save_config(default_conf)
         return default_conf
 
     # Load existing user/cwd configuration
-    with open(file=CONFIG_FILE, mode='r', encoding='utf-8') as f:
-        config = yaml.safe_load(stream=f) or {}
+    with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f) or {}
 
     # Merge missing defaults into the loaded config safely
     modified = False
@@ -72,12 +87,19 @@ def load_config() -> Dict[str, Any]:
 
     # Save automatically if we had to inject missing missing parameters
     if modified:
-        save_config(config=config)
+        save_config(config)
 
     return config
 
 
 def save_config(config: Dict[str, Any]) -> None:
-    """Saves the configuration dictionary to the chosen YAML file."""
-    with open(file=CONFIG_FILE, mode='w', encoding='utf-8') as f:
-        yaml.dump(data=config, stream=f, sort_keys=False)
+    """
+    Save the configuration dictionary to the active YAML file.
+
+    Parameters
+    ----------
+    config : Dict[str, Any]
+        The configuration dictionary to save.
+    """
+    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+        yaml.dump(config, f, sort_keys=False)

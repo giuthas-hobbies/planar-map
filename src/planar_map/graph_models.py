@@ -1,10 +1,13 @@
+from __future__ import annotations  # MUST be the first line
+
 import os
 import yaml
 import math
 import random
 from typing import (
-    Dict, Any, List, Optional, Tuple, Set, cast
+    Any, cast, TYPE_CHECKING
 )
+
 from PyQt6.QtWidgets import (
     QGraphicsView, QGraphicsScene, QGraphicsItem,
     QDialog, QFormLayout, QLineEdit, QDialogButtonBox,
@@ -14,23 +17,36 @@ from PyQt6.QtCore import Qt, QPointF, QLineF, QTimer, QRectF
 from PyQt6.QtGui import (
     QColor, QPen, QBrush, QPainter, QPainterPath, QFont, QFontMetrics
 )
-# if TYPE_CHECKING:
-#     from planar_map.main_window import MainWindow
+
+if TYPE_CHECKING:
+    # This is only seen by Sphinx and Type Checkers, ignored at runtime
+    from planar_map.main_window import MainWindow
 
 
 class EditDialog(QDialog):
-    """A generic dialog to create or edit properties of nodes and edges."""
+    """
+    A generic dialog to create or edit properties of nodes and edges.
+
+    Parameters
+    ----------
+    fields : dict[str, Any]
+        A dictionary of field names and their default values.
+    title : str
+        The window title for the dialog.
+    parent : QWidget | None, optional
+        The parent widget, by default None.
+    """
 
     def __init__(
         self,
-        fields: Dict[str, Any],
+        fields: dict[str, Any],
         title: str,
-        parent: Optional[QWidget] = None
+        parent: QWidget | None = None
     ) -> None:
         super().__init__(parent=parent)
         self.setWindowTitle(title)
         self.layout = QFormLayout(parent=self)
-        self.inputs: Dict[str, QLineEdit] = {}
+        self.inputs: dict[str, QLineEdit] = {}
 
         for field, default in fields.items():
             le = QLineEdit(str(default))
@@ -46,18 +62,37 @@ class EditDialog(QDialog):
         self.btns.rejected.connect(self.reject)
         self.layout.addWidget(self.btns)
 
-    def get_data(self) -> Dict[str, str]:
+    def get_data(self) -> dict[str, str]:
+        """
+        Retrieve the data entered into the dialog fields.
+
+        Returns
+        -------
+        dict[str, str]
+            A mapping of field names to the string values entered.
+        """
         return {f: le.text() for f, le in self.inputs.items()}
 
 
 class Edge(QGraphicsItem):
-    """A visual representation of a connection between two Nodes."""
+    """
+    A visual representation of a connection between two Nodes.
+
+    Parameters
+    ----------
+    source : Node
+        The starting node of the edge.
+    target : Node
+        The ending node of the edge.
+    properties : dict[str, Any]
+        Configuration properties like color, width, and style.
+    """
 
     def __init__(
         self,
         source: 'Node',
         target: 'Node',
-        properties: Dict[str, Any]
+        properties: dict[str, Any]
     ) -> None:
         super().__init__()
         self.source = source
@@ -72,7 +107,15 @@ class Edge(QGraphicsItem):
         self.is_highlighted: bool = False
         self.setZValue(-1)
 
-    def update_properties(self, properties: Dict[str, Any]) -> None:
+    def update_properties(self, properties: dict[str, Any]) -> None:
+        """
+        Update visual attributes based on a property dictionary.
+
+        Parameters
+        ----------
+        properties : dict[str, Any]
+            Contains 'color', 'width', 'curvature', and 'style'.
+        """
         self.base_color = QColor(properties.get('color', '#888888'))
         self.width = int(properties.get('width', 1))
         self.curvature = float(properties.get('curvature', 0.0))
@@ -87,6 +130,7 @@ class Edge(QGraphicsItem):
         self.update()
 
     def remove(self) -> None:
+        """Remove the edge from connected nodes and the scene."""
         if self in self.source.edges:
             self.source.edges.remove(self)
         if self in self.target.edges:
@@ -95,9 +139,18 @@ class Edge(QGraphicsItem):
             self.scene().removeItem(self)
 
     def adjust(self) -> None:
+        """Notify the scene that the geometry has changed."""
         self.prepareGeometryChange()
 
     def get_path(self) -> QPainterPath:
+        """
+        Calculate the Bezier or straight path for the edge.
+
+        Returns
+        -------
+        QPainterPath
+            The calculated path from source to target.
+        """
         path = QPainterPath(self.source.pos())
         if self.curvature == 0.0:
             path.lineTo(self.target.pos())
@@ -117,6 +170,14 @@ class Edge(QGraphicsItem):
         return path
 
     def boundingRect(self) -> QRectF:
+        """
+        Define the bounding rectangle for collision and redrawing.
+
+        Returns
+        -------
+        QRectF
+            The calculated bounding box.
+        """
         if not self.source or not self.target:
             return QRectF()
         path_rect = self.get_path().boundingRect()
@@ -131,8 +192,20 @@ class Edge(QGraphicsItem):
         self,
         painter: QPainter,
         option: QStyleOptionGraphicsItem,
-        widget: Optional[QWidget] = None
+        widget: QWidget | None = None
     ) -> None:
+        """
+        Paint the edge line or curve.
+
+        Parameters
+        ----------
+        painter : QPainter
+            The painter used for drawing.
+        option : QStyleOptionGraphicsItem
+            Provides style information.
+        widget : QWidget | None, optional
+            The widget being painted on, by default None.
+        """
         if not self.source or not self.target:
             return
         draw_color = QColor(self.base_color)
@@ -154,7 +227,20 @@ class Edge(QGraphicsItem):
 
 
 class Node(QGraphicsItem):
-    """A visual representation of a concept or markdown file."""
+    """
+    A visual representation of a concept or markdown file in the graph.
+
+    Parameters
+    ----------
+    node_id : str
+        The unique identifier for the node.
+    label : str
+        The display text for the node.
+    graph_widget : GraphWidget
+        The parent graph widget containing this node.
+    md_file : str, optional
+        The associated markdown file path, by default "".
+    """
 
     def __init__(
         self,
@@ -166,7 +252,7 @@ class Node(QGraphicsItem):
         super().__init__()
         self.id = node_id
         self.graph_widget = graph_widget
-        self.edges: List['Edge'] = []
+        self.edges: list[Edge] = []
         self.new_pos = QPointF()
         self.is_dimmed: bool = False
 
@@ -187,7 +273,16 @@ class Node(QGraphicsItem):
         self.setZValue(1)
 
     def update_data(self, label: str, md_file: str) -> None:
-        """Updates the label, resizes the node, and triggers a repaint."""
+        """
+        Update the label and markdown file, resizing the node accordingly.
+
+        Parameters
+        ----------
+        label : str
+            The new text label for the node.
+        md_file : str
+            The new markdown file path.
+        """
         self.prepareGeometryChange()
         self.label = label
         self.md_file = md_file
@@ -203,9 +298,18 @@ class Node(QGraphicsItem):
         self.update()
 
     def add_edge(self, edge: 'Edge') -> None:
+        """
+        Register an edge connected to this node.
+
+        Parameters
+        ----------
+        edge : Edge
+            The edge object to add.
+        """
         self.edges.append(edge)
 
     def remove(self) -> None:
+        """Delete node from the graph, removing all connected edges."""
         for edge in list(self.edges):
             edge.remove()
         if self.id in self.graph_widget.nodes_dict:
@@ -213,7 +317,15 @@ class Node(QGraphicsItem):
         if self.scene():
             self.scene().removeItem(self)
 
-    def calculate_forces(self, nodes: List['Node']) -> None:
+    def calculate_forces(self, nodes: list['Node']) -> None:
+        """
+        Calculate repulsive and attractive forces for physics simulation.
+
+        Parameters
+        ----------
+        nodes : list[Node]
+            A list of all nodes currently in the scene.
+        """
         if self.scene().mouseGrabberItem() == self:
             self.new_pos = self.pos()
             return
@@ -224,7 +336,7 @@ class Node(QGraphicsItem):
         attr_force = float(phys.get('attraction_force', 0.05))
         spring_len = float(phys.get('spring_length', 100.0))
 
-        xvel, yvel = 0.0, 0.0
+        x_velocity, y_velocity = 0.0, 0.0
 
         for node in nodes:
             if node == self:
@@ -234,10 +346,10 @@ class Node(QGraphicsItem):
 
             # Limited range repulsion
             if 0 < dist < rep_range:
-                # Add a small smoothing constant to avoid zero-division leaps
+                # Add smoothing constant to avoid zero-division leaps
                 force = rep_force / (dist * dist + 1.0)
-                xvel -= (line.dx() / dist) * force
-                yvel -= (line.dy() / dist) * force
+                x_velocity -= (line.dx() / dist) * force
+                y_velocity -= (line.dy() / dist) * force
 
         for edge in self.edges:
             target = edge.target if edge.source == self else edge.source
@@ -245,18 +357,34 @@ class Node(QGraphicsItem):
             dist = line.length()
             if dist > 0:
                 force = (dist - spring_len) * attr_force
-                xvel += (line.dx() / dist) * force
-                yvel += (line.dy() / dist) * force
+                x_velocity += (line.dx() / dist) * force
+                y_velocity += (line.dy() / dist) * force
 
-        self.new_pos = self.pos() + QPointF(xvel, yvel)
+        self.new_pos = self.pos() + QPointF(x_velocity, y_velocity)
 
     def advance_position(self) -> bool:
+        """
+        Apply the calculated physics position to the item.
+
+        Returns
+        -------
+        bool
+            True if the position changed, False otherwise.
+        """
         if self.new_pos == self.pos():
             return False
         self.setPos(self.new_pos)
         return True
 
     def boundingRect(self) -> QRectF:
+        """
+        Define the outer bounds of the item for rendering.
+
+        Returns
+        -------
+        QRectF
+            The bounding rectangle of the node.
+        """
         pad = 5.0
         return QRectF(
             -self.rect_width / 2 - pad,
@@ -269,8 +397,20 @@ class Node(QGraphicsItem):
         self,
         painter: QPainter,
         option: QStyleOptionGraphicsItem,
-        widget: Optional[QWidget] = None
+        widget: QWidget | None = None
     ) -> None:
+        """
+        Paint the node onto the graphics scene.
+
+        Parameters
+        ----------
+        painter : QPainter
+            The painter object used for drawing.
+        option : QStyleOptionGraphicsItem
+            Provides style options for the item.
+        widget : QWidget | None
+            The widget that is being painted on, by default None.
+        """
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         alpha = 50 if self.is_dimmed else 255
 
@@ -309,6 +449,21 @@ class Node(QGraphicsItem):
         change: QGraphicsItem.GraphicsItemChange,
         value: Any
     ) -> Any:
+        """
+        Handle item state changes, specifically position for edge adjustment.
+
+        Parameters
+        ----------
+        change : QGraphicsItem.GraphicsItemChange
+            The type of change occurring.
+        value : Any
+            The new value for the change.
+
+        Returns
+        -------
+        Any
+            The result of the base itemChange.
+        """
         pos_change = QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged
         if change == pos_change:
             for edge in self.edges:
@@ -316,16 +471,40 @@ class Node(QGraphicsItem):
         return super().itemChange(change, value)
 
     def hoverEnterEvent(self, event: Any) -> None:
+        """
+        Trigger hover state and markdown preview on enter.
+
+        Parameters
+        ----------
+        event : Any
+            The hover event data.
+        """
         self.graph_widget.set_hover_state(active=self)
         main_win = self.graph_widget.main_window
         main_win.load_markdown_preview(filepath=self.md_file)
         super().hoverEnterEvent(event)
 
     def hoverLeaveEvent(self, event: Any) -> None:
+        """
+        Reset hover state on leave.
+
+        Parameters
+        ----------
+        event : Any
+            The hover event data.
+        """
         self.graph_widget.clear_hover_state()
         super().hoverLeaveEvent(event)
 
     def mouseDoubleClickEvent(self, event: Any) -> None:
+        """
+        Open editor or edit dialog on double click.
+
+        Parameters
+        ----------
+        event : Any
+            The mouse event data.
+        """
         if self.md_file:
             main_win = self.graph_widget.main_window
             main_win.load_markdown_editor(filepath=self.md_file)
@@ -334,8 +513,15 @@ class Node(QGraphicsItem):
         super().mouseDoubleClickEvent(event)
 
     def contextMenuEvent(self, event: Any) -> None:
-        """Handles right-click context menu directly on the node."""
-        self.setSelected(selected=True)
+        """
+        Handles right-click context menu directly on the node.
+
+        Parameters
+        ----------
+        event : Any
+            The context menu event data.
+        """
+        self.setSelected(True)
 
         menu = QMenu()
         edit_act = menu.addAction("Edit Node")
@@ -349,7 +535,16 @@ class Node(QGraphicsItem):
 
 
 class GraphWidget(QGraphicsView):
-    """The primary canvas view that holds and manages the graph scene."""
+    """
+    The primary canvas view that holds and manages the graph scene.
+
+    Parameters
+    ----------
+    yaml_file : str
+        Path to the YAML file storing graph data.
+    main_window : MainWindow
+        Reference to the application's main window.
+    """
 
     def __init__(self, yaml_file: str, main_window: 'MainWindow') -> None:
         super().__init__()
@@ -363,7 +558,7 @@ class GraphWidget(QGraphicsView):
         self.setBackgroundBrush(QColor("#1e1e1e"))
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
 
-        self.nodes_dict: Dict[str, Node] = {}
+        self.nodes_dict: dict[str, Node] = {}
         self.load_yaml()
 
         self.timer = QTimer()
@@ -372,21 +567,28 @@ class GraphWidget(QGraphicsView):
         self.update_physics_params()
 
     @property
-    def edges(self) -> list:
-        """Dynamically gathers all unique edges from the graph's nodes."""
+    def edges(self) -> list[Edge]:
+        """
+        Dynamically gather all unique edges from the graph's nodes.
+
+        Returns
+        -------
+        list[Edge]
+            A list of all edge objects currently in the graph.
+        """
         unique_edges = set()
         for node in self.nodes_dict.values():
-            # Use update to add all edges from this node to the set
             unique_edges.update(node.edges)
         return list(unique_edges)
 
     def update_physics_params(self) -> None:
-        """Pulls the latest physics parameters from the main config."""
+        """Pull the latest physics parameters from the configuration."""
         self.physics_params = self.main_window.config.get(
             'physics', {}
         ).copy()
 
     def load_yaml(self) -> None:
+        """Load node and edge data from the assigned YAML file."""
         if not os.path.exists(path=self.yaml_file):
             return
         with open(file=self.yaml_file, mode='r', encoding='utf-8') as f:
@@ -406,11 +608,11 @@ class GraphWidget(QGraphicsView):
             self.scene.addItem(node)
             node.setPos(random.randint(-100, 100), random.randint(-100, 100))
 
-        edge_pairs: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+        edge_pairs: dict[tuple[str, str], list[dict[str, Any]]] = {}
         for e in data.get('edges', []):
             src, tgt = str(e.get('source')), str(e.get('target'))
             pair = tuple(sorted([src, tgt]))
-            pair_key = cast(Tuple[str, str], pair)
+            pair_key = cast(tuple[str, str], pair)
             edge_pairs.setdefault(pair_key, []).append(e)
 
         for pair, edges_list in edge_pairs.items():
@@ -421,9 +623,19 @@ class GraphWidget(QGraphicsView):
 
     def _apply_curvature_and_create_edges(
         self,
-        pair: Tuple[str, str],
-        edges_list: List[Dict[str, Any]]
+        pair: tuple[str, str],
+        edges_list: list[dict[str, Any]]
     ) -> None:
+        """
+        Create edge objects with offsets for multiple edges between nodes.
+
+        Parameters
+        ----------
+        pair : tuple[str, str]
+            The sorted ID pair of the two nodes.
+        edges_list : list[dict[str, Any]]
+            A list of edge property dictionaries for this pair.
+        """
         total_edges = len(edges_list)
         for i, e_data in enumerate(iterable=edges_list):
             src = e_data.get('source')
@@ -443,7 +655,8 @@ class GraphWidget(QGraphicsView):
                 self.scene.addItem(edge)
 
     def save_yaml(self) -> None:
-        data: Dict[str, List[Dict[str, Any]]] = {'nodes': [], 'edges': []}
+        """Persist current node and edge data to the YAML file."""
+        data: dict[str, list[dict[str, Any]]] = {'nodes': [], 'edges': []}
         for node in self.nodes_dict.values():
             nd = {'id': node.id, 'label': node.label}
             if node.md_file:
@@ -463,6 +676,7 @@ class GraphWidget(QGraphicsView):
             yaml.dump(data=data, stream=f, sort_keys=False)
 
     def create_node(self) -> None:
+        """Launch dialog to create a new node and add it to the scene."""
         fields = {'id': 'NewNode', 'label': 'New Concept', 'md_file': ''}
         dialog = EditDialog(fields=fields, title="Create Node", parent=self)
         if dialog.exec() and (data := dialog.get_data()):
@@ -482,6 +696,7 @@ class GraphWidget(QGraphicsView):
         self.main_window.entity_list.refresh_data()
 
     def create_edge(self) -> None:
+        """Create a connection between two currently selected nodes."""
         selected = [
             i for i in self.scene.selectedItems()
             if isinstance(i, Node)
@@ -497,7 +712,7 @@ class GraphWidget(QGraphicsView):
             data['source'] = selected[0].id
             data['target'] = selected[1].id
             pair = tuple(sorted([selected[0].id, selected[1].id]))
-            pair_key = cast(Tuple[str, str], pair)
+            pair_key = cast(tuple[str, str], pair)
 
             edges = [
                 i for i in self.scene.items()
@@ -525,6 +740,7 @@ class GraphWidget(QGraphicsView):
         self.main_window.entity_list.refresh_data()
 
     def edit_selected(self) -> None:
+        """Edit properties of the currently selected node or edge."""
         sel = self.scene.selectedItems()
         if not sel:
             return
@@ -535,7 +751,6 @@ class GraphWidget(QGraphicsView):
             dialog = EditDialog(fields=fields, title=title, parent=self)
             if dialog.exec():
                 data = dialog.get_data()
-                # Use the new method to update properties & geometry safely
                 sel[0].update_data(
                     label=data['label'],
                     md_file=data['md_file']
@@ -552,6 +767,7 @@ class GraphWidget(QGraphicsView):
         self.main_window.entity_list.refresh_data()
 
     def delete_selected(self) -> None:
+        """Remove all selected items from the graph."""
         for item in self.scene.selectedItems():
             if isinstance(item, Edge):
                 item.remove()
@@ -561,7 +777,15 @@ class GraphWidget(QGraphicsView):
         self.main_window.entity_list.refresh_data()
 
     def set_hover_state(self, active: Node) -> None:
-        conn: Set[Node] = {active}
+        """
+        Dim non-connected items and highlight neighbors of active node.
+
+        Parameters
+        ----------
+        active : Node
+            The node being hovered.
+        """
+        conn: set[Node] = {active}
         for e in active.edges:
             conn.update([e.source, e.target])
             e.is_dimmed = False
@@ -577,6 +801,7 @@ class GraphWidget(QGraphicsView):
         self.scene.update()
 
     def clear_hover_state(self) -> None:
+        """Restore default visual state for all graph items."""
         for i in self.scene.items():
             if hasattr(i, 'is_dimmed'):
                 i.is_dimmed = False
@@ -585,6 +810,7 @@ class GraphWidget(QGraphicsView):
         self.scene.update()
 
     def update_physics(self) -> None:
+        """Step the physics simulation for all nodes."""
         nodes = list(self.nodes_dict.values())
         for n in nodes:
             n.calculate_forces(nodes=nodes)
@@ -592,7 +818,14 @@ class GraphWidget(QGraphicsView):
             n.advance_position()
 
     def contextMenuEvent(self, event: Any) -> None:
-        """Handles right-click context menu on the canvas background."""
+        """
+        Handles right-click context menu on the canvas background.
+
+        Parameters
+        ----------
+        event : Any
+            The context menu event data.
+        """
         item = self.itemAt(event.pos())
         if item is not None:
             super().contextMenuEvent(event)
