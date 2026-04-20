@@ -82,5 +82,6 @@ autodoc_class_signature = "separated"
 modindex_common_prefix = ["planar_map."]
 
 # Strip standard terminal prompts when copying
-copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "
+copybutton_prompt_text = (
+    r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: ")
 copybutton_prompt_is_regexp = True
